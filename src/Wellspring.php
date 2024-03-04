@@ -61,11 +61,11 @@ final class Wellspring
             $loader->getPriority() === Priority::High
         ) {
             if (self::$initialized) {
-                spl_autoload_unregister([self::class, 'checkQueue']);
+                spl_autoload_unregister([self::class, '_checkQueue']);
             }
 
             self::$initialized = true;
-            spl_autoload_register([self::class, 'checkQueue'], true, true);
+            spl_autoload_register([self::class, '_checkQueue'], true, true);
         }
     }
 
@@ -120,7 +120,7 @@ final class Wellspring
     /**
      * Queue checker loader
      */
-    private static function checkQueue(
+    public static function _checkQueue(
         string $class
     ): void {
         self::$initCall++;
@@ -137,7 +137,7 @@ final class Wellspring
 
         foreach ($functions as $i => $function) {
             // Check queue
-            if ($function === [self::class, 'checkQueue']) {
+            if ($function === [self::class, '_checkQueue']) {
                 if ($i !== 0) {
                     $resetCheckQueue = true;
                 }
@@ -195,8 +195,8 @@ final class Wellspring
 
         // Check queue
         if ($resetCheckQueue) {
-            spl_autoload_unregister([self::class, 'checkQueue']);
-            spl_autoload_register([self::class, 'checkQueue'], true, true);
+            spl_autoload_unregister([self::class, '_checkQueue']);
+            spl_autoload_register([self::class, '_checkQueue'], true, true);
         }
 
         self::$functions = spl_autoload_functions();
