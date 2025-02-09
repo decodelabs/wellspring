@@ -1,3 +1,5 @@
+* Added PHP8.4 to CI workflow
+
 ## v0.1.1 (2024-03-04)
 * Made checkQueue public for static analysis compatibility
 
