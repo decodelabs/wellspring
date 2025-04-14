@@ -11,8 +11,6 @@
 
 Wellspring provides simple tools to manage and configure autoloaders in PHP.
 
-_Get news and updates on the [DecodeLabs blog](https://blog.decodelabs.com)._
-
 ---
 
 ## Installation
