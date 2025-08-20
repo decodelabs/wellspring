@@ -19,9 +19,6 @@ final class Loader
     private Priority $priority = Priority::Medium;
 
 
-    /**
-     * Init with callback and priority
-     */
     public function __construct(
         callable $callback,
         Priority $priority
@@ -31,42 +28,27 @@ final class Loader
         $this->priority = $priority;
     }
 
-    /**
-     * Get ID
-     */
     public function getId(): string
     {
         return $this->id;
     }
 
-    /**
-     * Does callback match check value?
-     */
     public function isCallback(
         callable $callback
     ): bool {
         return Wellspring::identifyCallback($callback) === $this->id;
     }
 
-    /**
-     * Get callback
-     */
     public function getCallback(): Closure
     {
         return $this->callback;
     }
 
-    /**
-     * Get priority
-     */
     public function getPriority(): Priority
     {
         return $this->priority;
     }
 
-    /**
-     * Invoke callback
-     */
     public function __invoke(
         string $class
     ): void {

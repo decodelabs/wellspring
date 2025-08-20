@@ -28,9 +28,6 @@ final class Wellspring
      */
     private static ?array $functions = null;
 
-    /**
-     * Register SPL loader with priority
-     */
     public static function register(
         callable $callback,
         string|Priority|null $priority = null
@@ -69,9 +66,6 @@ final class Wellspring
         }
     }
 
-    /**
-     * Unregister SPL loader
-     */
     public static function unregister(
         callable $callback
     ): void {
@@ -87,8 +81,6 @@ final class Wellspring
     }
 
     /**
-     * Get list of registered loaders
-     *
      * @return array<string, Loader>
      */
     public static function getLoaders(): array
@@ -96,9 +88,6 @@ final class Wellspring
         return self::$loaders;
     }
 
-    /**
-     * Create unique ID for callback
-     */
     public static function identifyCallback(
         callable $callback
     ): string {
@@ -117,9 +106,6 @@ final class Wellspring
         return 'fn:' . md5(serialize($callback));
     }
 
-    /**
-     * Queue checker loader
-     */
     public static function _checkQueue(
         string $class
     ): void {
