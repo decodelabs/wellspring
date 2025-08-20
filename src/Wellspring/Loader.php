@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @package Veneer
+ * @package Wellspring
  * @license http://opensource.org/licenses/MIT
  */
 
