@@ -15,6 +15,8 @@ Wellspring provides simple tools to manage and configure autoloaders in PHP.
 
 ## Installation
 
+This package requires PHP 8.4 or higher.
+
 Install via Composer:
 
 ```bash
