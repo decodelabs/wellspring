@@ -14,39 +14,31 @@ use DecodeLabs\Wellspring;
 
 final class Loader
 {
-    private string $id;
-    private Closure $callback;
-    private Priority $priority = Priority::Medium;
+    public private(set) string $id;
+    public private(set) Closure $callback;
+    public private(set) Priority $priority = Priority::Medium;
 
 
     public function __construct(
         callable $callback,
-        Priority $priority
+        string|Priority|null $priority
     ) {
         $this->id = Wellspring::identifyCallback($callback);
         $this->callback = Closure::fromCallable($callback);
-        $this->priority = $priority;
-    }
 
-    public function getId(): string
-    {
-        return $this->id;
+        if ($priority === null) {
+            $priority = Priority::Medium;
+        } elseif (is_string($priority)) {
+            $priority = Priority::from($priority);
+        }
+
+        $this->priority = $priority;
     }
 
     public function isCallback(
         callable $callback
     ): bool {
         return Wellspring::identifyCallback($callback) === $this->id;
-    }
-
-    public function getCallback(): Closure
-    {
-        return $this->callback;
-    }
-
-    public function getPriority(): Priority
-    {
-        return $this->priority;
     }
 
     public function __invoke(

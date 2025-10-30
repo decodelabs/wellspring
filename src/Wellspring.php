@@ -11,6 +11,7 @@ namespace DecodeLabs;
 
 use DecodeLabs\Wellspring\Loader;
 use DecodeLabs\Wellspring\Priority;
+use DecodeLabs\Wellspring\QueueHandler;
 
 final class Wellspring
 {
@@ -23,46 +24,52 @@ final class Wellspring
      */
     private static array $loaders = [];
 
-    /**
-     * @var array<callable>
-     */
-    private static ?array $functions = null;
+    private static QueueHandler $queueHandler;
 
     public static function register(
         callable $callback,
         string|Priority|null $priority = null
     ): void {
-        if ($priority === null) {
-            $priority = Priority::Medium;
-        } elseif (is_string($priority)) {
-            $priority = Priority::from($priority);
+        // Normalize callback / loader
+        if ($callback instanceof Loader) {
+            $loader = $callback;
+        } else {
+            $loader = new Loader($callback, $priority);
         }
 
-        $loader = new Loader($callback, $priority);
-
-        if (isset(self::$loaders[$loader->getId()])) {
+        // Check if loader is already registered
+        if (isset(self::$loaders[$loader->id])) {
             return;
         }
 
-        self::$loaders[$loader->getId()] = $loader;
+        // Register loader
+        self::$loaders[$loader->id] = $loader;
 
         spl_autoload_register(
             $loader,
             true,
-            $loader->getPriority() === Priority::High
+            $loader->priority === Priority::High
         );
 
 
+        // Ensure queue handler is always registered first
         if (
             !self::$initialized ||
-            $loader->getPriority() === Priority::High
+            $loader->priority === Priority::High
         ) {
-            if (self::$initialized) {
-                spl_autoload_unregister([self::class, '_checkQueue']);
+            if (
+                self::$initialized &&
+                isset(self::$queueHandler)
+            ) {
+                spl_autoload_unregister(self::$queueHandler);
+            }
+
+            if (!isset(self::$queueHandler)) {
+                self::$queueHandler = new QueueHandler();
             }
 
             self::$initialized = true;
-            spl_autoload_register([self::class, '_checkQueue'], true, true);
+            spl_autoload_register(self::$queueHandler, true, true);
         }
     }
 
@@ -80,23 +87,31 @@ final class Wellspring
         spl_autoload_unregister($callback);
     }
 
-    /**
-     * @return array<string, Loader>
-     */
-    public static function getLoaders(): array
-    {
-        return self::$loaders;
-    }
-
     public static function identifyCallback(
         callable $callback
     ): string {
+        if ($callback instanceof Loader) {
+            return $callback->id;
+        }
+
         if (is_object($callback)) {
             return 'spl:' . spl_object_hash($callback);
         }
 
         if (is_array($callback)) {
-            return 'pn:' . implode('::', $callback);
+            $output = 'pn:';
+
+            if (is_object($callback[0])) {
+                $output .= get_class($callback[0]) . '(' . spl_object_id($callback[0]) . ')';
+            } elseif (is_string($callback[0])) {
+                $output .= $callback[0];
+            }
+
+            if (is_string($callback[1])) {
+                $output .= '::' . $callback[1];
+            }
+
+            return $output;
         }
 
         if (is_string($callback)) {
@@ -106,95 +121,38 @@ final class Wellspring
         return 'fn:' . md5(serialize($callback));
     }
 
-    public static function _checkQueue(
-        string $class
-    ): void {
-        self::$initCall++;
+    /**
+     * @return array<string,array{callback:callable,priority:Priority}>
+     */
+    public static function dump(): array
+    {
+        $output = [];
         $functions = spl_autoload_functions();
 
-        if ($functions === self::$functions) {
-            return;
+        // @phpstan-ignore-next-line
+        if ($functions === false) {
+            return $output;
         }
 
-        $resetCheckQueue = false;
-        $currentPriority = Priority::High;
-        $resetLows = $resetHighs = false;
-        $lows = $highs = [];
-
-        foreach ($functions as $i => $function) {
-            // Check queue
-            if ($function === [self::class, '_checkQueue']) {
-                if ($i !== 0) {
-                    $resetCheckQueue = true;
-                }
+        foreach ($functions as $function) {
+            if ($function === self::$queueHandler) {
                 continue;
             }
 
-            // Check priority
+            $id = self::identifyCallback($function);
+
             if ($function instanceof Loader) {
-                $priority = $function->getPriority();
+                $priority = $function->priority;
             } else {
                 $priority = Priority::Medium;
             }
 
-            switch ($priority) {
-                case Priority::High:
-                    if ($currentPriority !== Priority::High) {
-                        $highs[] = $function;
-                        $resetHighs = true;
-                    }
-                    break;
-
-                case Priority::Medium:
-                    if ($currentPriority === Priority::High) {
-                        $currentPriority = Priority::Medium;
-                    } elseif ($currentPriority === Priority::Low) {
-                        $resetLows = true;
-                    }
-                    break;
-
-                case Priority::Low:
-                    $currentPriority = Priority::Low;
-                    $lows[] = $function;
-                    break;
-            }
+            $output[$id] = [
+                'callback' => $function,
+                'priority' => $priority,
+            ];
         }
 
-
-        // Reset highs
-        if ($resetHighs) {
-            $resetCheckQueue = true;
-
-            foreach ($highs as $function) {
-                spl_autoload_unregister($function);
-                spl_autoload_register($function, true, true);
-            }
-        }
-
-        // Reset lows
-        if ($resetLows) {
-            foreach ($lows as $function) {
-                spl_autoload_unregister($function);
-                spl_autoload_register($function);
-            }
-        }
-
-        // Check queue
-        if ($resetCheckQueue) {
-            spl_autoload_unregister([self::class, '_checkQueue']);
-            spl_autoload_register([self::class, '_checkQueue'], true, true);
-        }
-
-        self::$functions = spl_autoload_functions();
-        self::$orderCall++;
-
-        if (
-            $resetHighs ||
-            $resetLows ||
-            $resetCheckQueue
-        ) {
-            // Run from the top again
-            spl_autoload_call($class);
-        }
+        return $output;
     }
 }
