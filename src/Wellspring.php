@@ -9,9 +9,11 @@ declare(strict_types=1);
 
 namespace DecodeLabs;
 
+use DecodeLabs\Wellspring\CallbackType;
 use DecodeLabs\Wellspring\Loader;
 use DecodeLabs\Wellspring\Priority;
 use DecodeLabs\Wellspring\QueueHandler;
+use DecodeLabs\Wellspring\Source;
 
 final class Wellspring
 {
@@ -111,7 +113,7 @@ final class Wellspring
             } elseif (is_string($callback[0])) {
                 $output = 'as:' . $callback[0];
             } else {
-                $output = 'an:' . md5(serialize($callback));
+                $output = 'ax:' . md5(serialize($callback));
             }
 
             if (is_string($callback[1])) {
@@ -121,7 +123,7 @@ final class Wellspring
             return $output;
         }
 
-        return 'fn:' . md5(serialize($callback));
+        return 'fx:' . md5(serialize($callback));
     }
 
     /**
@@ -153,6 +155,10 @@ final class Wellspring
             $output[$id] = [
                 'callback' => $function,
                 'priority' => $priority,
+                'type' => CallbackType::from(substr($id, 0, 2)),
+                'source' => $function instanceof Loader ?
+                    Source::Wellspring :
+                    Source::SPL,
             ];
         }
 

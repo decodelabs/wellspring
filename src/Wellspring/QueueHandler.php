@@ -116,7 +116,7 @@ class QueueHandler
             spl_autoload_register($this, prepend: true);
         }
 
-        self::$functions = spl_autoload_functions();
+        self::$functions = spl_autoload_functions() ?: [];
         self::$remaps++;
 
         if (

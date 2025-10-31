@@ -27,7 +27,7 @@ composer require decodelabs/wellspring
 
 Wellspring offers an easy to use wrapper around SPL autoload functions, providing extra functionality such as priority ordering and deduplication.
 
-The API is simple and intuitive, allowing you to register autoloaders with a priority level - the higher the priority, the earlier the autoloader will be called. Loaders are _grouped_ by priority but maintain the first-come, first-served order within each group.
+The API is simple and intuitive, allowing you to register autoloaders with a priority level - the higher the priority, the earlier the autoloader will be called. Loaders are _grouped_ by priority but maintain the first-come, first-served order within each group by virtue of leveraging the original order of the SPL autoload functions.
 
 Loaders registered via the built in SPL functions are automatically assigned the `Priority::Medium` priority, allowing users of Wellspring to easily register other loaders before or after them using only the Priority mechanism.
 
@@ -94,15 +94,21 @@ This will output a list of all registered loaders in order of priority:
 [
     'ob:Closure(15)' => [
         'callback' => Loader,
-        'priority' => Priority::High
+        'priority' => Priority::High,
+        'type' => CallbackType::Object,
+        'source' => Source::Wellspring,
     ],
     'ao:Composer\Autoload\ClassLoader(5)::loadclass' => [
         'callback' => [Composer\Autoload\ClassLoader, loadclass],
-        'priority' => Priority::Medium
+        'priority' => Priority::Medium,
+        'type' => CallbackType::ObjectArray,
+        'source' => Source::SPL,
     ],
     'st:test' => [
         'callback' => Loader,
-        'priority' => Priority::Low
+        'priority' => Priority::Low,
+        'type' => CallbackType::String,
+        'source' => Source::Wellspring,
     ]
 ]
 ```
@@ -117,8 +123,6 @@ Wellspring\QueueHandler::$remaps;
 ### Performance
 
 Wellspring is designed to be performant and efficient, ensuring that managing the autoloader queue does not significantly impact performance. The `QueueHandler` works in the hot path of the autoloader system and leverages PHP's internal referencing of arrays to minimise memory allocations and churn.
-
-
 
 
 ## Licensing
