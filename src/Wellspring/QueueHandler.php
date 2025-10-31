@@ -13,6 +13,9 @@ use DecodeLabs\Wellspring;
 
 class QueueHandler
 {
+    public static int $checks = 0;
+    public static int $remaps = 0;
+
     /**
      * @var array<callable>
      */
@@ -21,7 +24,7 @@ class QueueHandler
     public function __invoke(
         string $class
     ): void {
-        Wellspring::$initCall++;
+        self::$checks++;
         $functions = spl_autoload_functions();
 
         if (
@@ -114,7 +117,7 @@ class QueueHandler
         }
 
         self::$functions = spl_autoload_functions();
-        Wellspring::$orderCall++;
+        self::$remaps++;
 
         if (
             $resetHighs ||

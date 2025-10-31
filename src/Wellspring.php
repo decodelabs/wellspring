@@ -16,8 +16,6 @@ use DecodeLabs\Wellspring\QueueHandler;
 final class Wellspring
 {
     private static bool $initialized = false;
-    public static int $initCall = 0;
-    public static int $orderCall = 0;
 
     /**
      * @var array<string, Loader>
@@ -95,27 +93,32 @@ final class Wellspring
         }
 
         if (is_object($callback)) {
-            return 'spl:' . spl_object_hash($callback);
-        }
-
-        if (is_array($callback)) {
-            $output = 'pn:';
-
-            if (is_object($callback[0])) {
-                $output .= get_class($callback[0]) . '(' . spl_object_id($callback[0]) . ')';
-            } elseif (is_string($callback[0])) {
-                $output .= $callback[0];
-            }
-
-            if (is_string($callback[1])) {
-                $output .= '::' . $callback[1];
-            }
-
-            return $output;
+            return 'ob:' . get_class($callback) . '(' . spl_object_id($callback) . ')';
         }
 
         if (is_string($callback)) {
-            return 'pn:' . $callback;
+            if (!str_contains($callback, '::')) {
+                return 'st:' . strtolower($callback);
+            }
+
+            $callback = explode('::', $callback);
+        }
+
+
+        if (is_array($callback)) {
+            if (is_object($callback[0])) {
+                $output = 'ao:' . get_class($callback[0]) . '(' . spl_object_id($callback[0]) . ')';
+            } elseif (is_string($callback[0])) {
+                $output = 'as:' . $callback[0];
+            } else {
+                $output = 'an:' . md5(serialize($callback));
+            }
+
+            if (is_string($callback[1])) {
+                $output .= '::' . strtolower($callback[1]);
+            }
+
+            return $output;
         }
 
         return 'fn:' . md5(serialize($callback));

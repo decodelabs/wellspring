@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converted getters to properties
 - Improved edge case state checks
 - Added loader table dump method
+- Improved callback identification for anonymous functions
 - Fixed header meta
 - Simplified CI workflow
 
