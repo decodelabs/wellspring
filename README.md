@@ -29,7 +29,7 @@ Wellspring offers an easy to use wrapper around SPL autoload functions, providin
 
 The API is simple and intuitive, allowing you to register autoloaders with a priority level - the higher the priority, the earlier the autoloader will be called. Loaders are _grouped_ by priority but maintain the first-come, first-served order within each group by virtue of leveraging the original order of the SPL autoload functions.
 
-Loaders registered via the built in SPL functions are automatically assigned the `Priority::Medium` priority, allowing users of Wellspring to easily register other loaders before or after them using only the Priority mechanism.
+Loaders registered via the built in SPL functions are automatically assigned the `Priority::Medium` priority, allowing users of Wellspring to easily register other loaders before with `Priority::High` or after them using `Priority::Low`.
 
 The registered list of loaders is automatically remapped on the fly when necessary (even when `spl_autoload_register()` and `spl_autoload_unregister()` are used directly), ensuring edge-case functionality does not interfere with the intended load order.
 
@@ -56,16 +56,20 @@ spl_autoload_register(function(string $class) {
 spl_autoload_call('test');
 ```
 
+When registered via Wellspring, loaders are wrapped in a `Loader` instance; this wrapper passes autoload calls directly to the original callback and has a void return type, matching the expected signature of the `spl_autoload_register()` function.
+
 ### Error handling
 
-Wellspring does not attempt to handle errors or exceptions that may be thrown by loaders. If a loader throws an error, it will be propagated up to the caller and should be handled by the application, in the same way as if the loader was registered directly via `spl_autoload_register()`.
+Wellspring does not intercept exceptions thrown by user autoloaders; SPL stops the chain automatically when an exception is thrown, matching existing behaviour with SPL functions.
 
 ## Deduplication
 
+Wellspring ensures that each autoloader is only registered once, even if the same callable is added directly through SPL.
+Callable identity covers functions, static methods, instance methods, closures, and invokable objects, matched case-insensitively for class and method names.
+
 If static references (such as `['Class', 'method']` or `'Class::method'`) are registered multiple times, Wellspring will automatically deduplicate them, ensuring the same loader is not called multiple times for the same class.
 
-Please note though, object instances are only deduplicated if they are the **same** instance, not if they are different instances of the same class as instances are considered unique. This also applies to `Closures` (both defined as classic anonymous functions and as first class callables such as `$this->method(...)`) as the _context_ of the closure is considered unique.
-
+Object instances are only deduplicated if they are the **same** instance, not if they are different instances of the same class as instances are considered unique. This also applies to `Closures` (both defined as classic anonymous functions and as first class callables such as `$this->method(...)`) as the _context_ of the closure is considered unique.
 
 
 ### Unregistering Loaders
@@ -88,7 +92,7 @@ If you need to debug the current state of the autoloader queue, you can use the 
 Wellspring::dump();
 ```
 
-This will output a list of all registered loaders in order of priority:
+This will output a list of all registered loaders in order of priority, including their priority, type and source, keyed by their callback identity:
 
 ```
 [
