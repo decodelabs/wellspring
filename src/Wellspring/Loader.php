@@ -1,8 +1,8 @@
 <?php
 
 /**
- * @package Wellspring
- * @license http://opensource.org/licenses/MIT
+ * Wellspring
+ * @license https://opensource.org/licenses/MIT
  */
 
 declare(strict_types=1);
