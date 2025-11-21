@@ -20,14 +20,9 @@ It is aimed at:
 
 ### 1.1 Purpose
 
-Wellspring provides **PHP autoload management tools** that extend PHP's built-in SPL autoload functions with:
+Wellspring provides **PHP autoload management tools** that extend PHP's built-in SPL autoload functions with priority-based ordering, automatic deduplication, and queue management. It wraps SPL autoload functions (`spl_autoload_register()`, `spl_autoload_unregister()`) to provide a more structured and predictable autoloader management system while remaining fully compatible with direct SPL usage.
 
-- **Priority-based ordering** of autoloaders (High, Medium, Low) to control execution order.
-- **Automatic deduplication** of registered autoloaders to prevent the same loader from being called multiple times.
-- **Queue management** that automatically remaps the autoloader queue when loaders are registered or unregistered via SPL functions directly.
-- **Debugging utilities** to inspect the current state of the autoloader queue.
-
-Wellspring wraps SPL autoload functions (`spl_autoload_register()`, `spl_autoload_unregister()`) to provide a more structured and predictable autoloader management system while remaining compatible with direct SPL usage.
+Wellspring enables Decode Labs packages and applications to register autoloaders with explicit priority control (High, Medium, Low), prevent duplicate autoloader registration, and maintain autoloader order even when SPL functions are used directly by other code.
 
 ### 1.2 Non-Goals
 
@@ -46,14 +41,8 @@ Wellspring is a **management layer** for autoloaders, not an autoloader implemen
 
 ### 2.1 Cluster & Positioning
 
-- **Cluster:** `runtime`
-- Wellspring is a **foundational utility** used early in application bootstrap to manage autoloader registration and ordering.
-
-It sits at a very low level in the dependency graph:
-
-- It has **no dependencies** (not even other Decode Labs packages).
-- It is safe to use from almost anywhere in the stack.
-- Higher-level packages (e.g., `decodelabs/exceptional`) may use Wellspring to ensure their autoloaders run at the correct priority.
+- **Cluster:** `runtime` (see Chorus taxonomy)
+- Wellspring is a **foundational utility** used early in application bootstrap to manage autoloader registration and ordering. It sits at a very low level in the dependency graph with no dependencies, making it safe to use from almost anywhere in the stack.
 
 ### 2.2 Typical Usage Contexts
 
@@ -64,11 +53,7 @@ Typical places Wellspring appears:
 - **Development tools** that need to inject autoloaders for debugging or code generation.
 - **Testing frameworks** that need to control autoloader order for test isolation.
 
-Wellspring is intended to be used whenever a Decode Labs package or application needs to:
-
-- register autoloaders with explicit priority control,
-- prevent duplicate autoloader registration,
-- maintain autoloader order even when SPL functions are used directly.
+Wellspring is intended to be used whenever a Decode Labs package or application needs to register autoloaders with explicit priority control, prevent duplicate autoloader registration, or maintain autoloader order even when SPL functions are used directly.
 
 ---
 
@@ -81,22 +66,22 @@ Wellspring is intended to be used whenever a Decode Labs package or application 
 The primary public types are:
 
 - `DecodeLabs\Wellspring`
-  Main entry point for registering and managing autoloaders. Provides static methods for registration, unregistration, and debugging.
+  Main entry point for registering and managing autoloaders. Provides static methods for registration, unregistration, debugging, and callable identification.
 
 - `DecodeLabs\Wellspring\Loader`
-  Wrapper around a callable autoloader that tracks priority and provides identity for deduplication. Implements `__invoke()` to match SPL autoloader signature.
+  Wrapper around a callable autoloader that tracks priority and provides identity for deduplication. Implements `__invoke(string $class): void` to match SPL autoloader signature. Can be instantiated directly or created automatically by `Wellspring::register()`.
 
 - `DecodeLabs\Wellspring\Priority`
-  Enum representing autoloader priority levels: `High`, `Medium`, `Low`. Loaders registered via SPL functions directly are assigned `Medium` priority.
+  Enum representing autoloader priority levels: `High`, `Medium`, `Low`. Provides `toInt()` method for integer conversion. Loaders registered via SPL functions directly are assigned `Medium` priority. PHP backed enum provides `from(string)` and `tryFrom(string)` methods automatically.
 
 - `DecodeLabs\Wellspring\QueueHandler`
-  Internal handler that monitors and remaps the autoloader queue. Provides static counters (`$checks`, `$remaps`) for debugging.
+  Internal handler that monitors and remaps the autoloader queue. Provides static counters (`$checks`, `$remaps`) for debugging queue management activity.
 
 - `DecodeLabs\Wellspring\CallbackType`
-  Enum representing types of callable identifiers: `Object`, `String`, `ObjectArray`, `StringArray`, `SerializedArray`, `SerializedFunction`.
+  Enum representing types of callable identifiers used for debugging: `Object`, `String`, `ObjectArray`, `StringArray`, `SerializedArray`, `SerializedFunction`.
 
 - `DecodeLabs\Wellspring\Source`
-  Enum indicating whether a loader was registered via `Wellspring` or directly via SPL functions: `Wellspring`, `SPL`.
+  Enum indicating whether a loader was registered via Wellspring or directly via SPL functions: `Wellspring`, `SPL`.
 
 ### 3.2 Main Entry Points
 
@@ -121,7 +106,12 @@ Wellspring::unregister($callback);
 
 // Debug current queue state
 $dump = Wellspring::dump();
+
+// Identify a callable for deduplication
+$id = Wellspring::identifyCallback($callback);
 ```
+
+Wellspring automatically manages the autoloader queue order and deduplication, ensuring loaders run in the correct priority order even when mixed with direct SPL usage.
 
 ---
 
@@ -141,7 +131,7 @@ Wellspring requires:
 
 - **PHP 8.4+** (see `composer.json` for supported PHP versions).
 
-No external libraries or packages are required.
+No external libraries or packages are required for runtime operation.
 
 ---
 
@@ -150,7 +140,7 @@ No external libraries or packages are required.
 ### 5.1 Invariants
 
 - `Wellspring::register()` **always deduplicates** loaders by callable identity (same callable registered multiple times is ignored).
-- Loaders registered via `Wellspring::register()` with `Priority::High` **always run before** loaders registered via SPL functions directly.
+- Loaders registered via `Wellspring::register()` with `Priority::High` **always run before** loaders registered via SPL functions directly (which get `Medium` priority).
 - Loaders registered via `Wellspring::register()` with `Priority::Low` **always run after** loaders registered via SPL functions directly.
 - The `QueueHandler` **always runs first** in the autoloader queue to monitor and remap the queue when needed.
 - Callable identity is **case-insensitive** for class and method names (e.g., `['Class', 'method']` and `['class', 'Method']` are considered the same).
@@ -160,14 +150,16 @@ No external libraries or packages are required.
 ### 5.2 Input & Output Contracts
 
 - `Wellspring::register(callable $callback, string|Priority|null $priority)` accepts:
-  - `$callback`: Any callable (function, method, closure, invokable object).
+  - `$callback`: Any callable (function, method, closure, invokable object, or `Loader` instance).
   - `$priority`: Optional priority (`Priority::High`, `Priority::Medium`, `Priority::Low`, or string `'high'`, `'medium'`, `'low'`). Defaults to `Priority::Medium`.
+  - Returns: `void`
 
 - `Wellspring::unregister(callable $callback)` accepts:
   - `$callback`: The same callable (or `Loader` instance) that was registered. Works for both Wellspring-registered and SPL-registered loaders.
+  - Returns: `void`
 
 - `Wellspring::dump()` returns:
-  - Array keyed by callable identity, each containing:
+  - Array keyed by callable identity (string), each containing:
     - `callback`: The callable or `Loader` instance.
     - `priority`: The `Priority` enum value.
     - `type`: The `CallbackType` enum value.
@@ -185,13 +177,13 @@ No external libraries or packages are required.
 
 The `QueueHandler` automatically:
 
-- **Monitors** the autoloader queue on each autoload call.
-- **Detects** when the queue order is incorrect (e.g., High priority loaders after Medium, Low priority loaders before Medium).
+- **Monitors** the autoloader queue on each autoload call (runs first in the queue).
+- **Detects** when the queue order is incorrect (e.g., High priority loaders after Medium, Low priority loaders before Medium, or itself not first).
 - **Remaps** the queue by unregistering and re-registering loaders in the correct order.
 - **Maintains** first-come, first-served order within each priority group.
-- **Ensures** itself is always registered first (prepended) to monitor the queue.
+- **Increments** static counters (`$checks`, `$remaps`) for debugging.
 
-This allows Wellspring to work correctly even when `spl_autoload_register()` or `spl_autoload_unregister()` are called directly.
+This allows Wellspring to work correctly even when `spl_autoload_register()` or `spl_autoload_unregister()` are called directly by other code.
 
 ---
 
@@ -202,7 +194,7 @@ This allows Wellspring to work correctly even when `spl_autoload_register()` or 
 Wellspring does **not** throw exceptions for normal operations. It uses PHP's standard autoloader behaviour:
 
 - **Exceptions from user autoloaders** propagate normally and stop the autoload chain (matching SPL behaviour).
-- **Invalid priority strings** are converted via `Priority::from()` which may throw `ValueError` if the string is invalid.
+- **Invalid priority strings** passed to `Priority::from()` throw `ValueError` if the string does not match a valid enum case (PHP backed enum behaviour).
 
 ### 6.2 Error Strategy
 
@@ -211,6 +203,7 @@ Wellspring is designed to be **non-intrusive**:
 - It does not intercept or handle exceptions from user autoloaders.
 - It does not validate callable signatures (any callable accepted by `spl_autoload_register()` is accepted).
 - It gracefully handles edge cases (e.g., empty autoloader queue, missing callables) by falling back to SPL behaviour.
+- Queue remapping errors are handled internally and do not affect the autoload chain.
 
 ---
 
@@ -224,12 +217,12 @@ Wellspring has **no configuration** beyond the priority parameter when registeri
 
 Wellspring supports extension via:
 
-- **Custom `Loader` instances**: Create `Loader` instances directly and pass them to `register()`.
-- **Direct SPL usage**: Wellspring monitors and remaps the queue even when SPL functions are used directly.
+- **Custom `Loader` instances**: Create `Loader` instances directly with specific priorities and pass them to `register()`.
+- **Direct SPL usage**: Wellspring monitors and remaps the queue even when SPL functions are used directly, ensuring consistent priority ordering.
 
-Built-in types:
+Built-in types that may be extended:
 
-- `Priority`: Enum with `High`, `Medium`, `Low` values.
+- `Priority`: Enum with `High`, `Medium`, `Low` values and `toInt()` method.
 - `CallbackType`: Enum identifying callable types for debugging.
 - `Source`: Enum identifying whether a loader came from Wellspring or SPL.
 
@@ -254,7 +247,7 @@ Design assumptions:
 
 ## 9. Usage Examples
 
-### 9.1 Basic registration
+### 9.1 Basic Registration with Priority
 
 ```php
 use DecodeLabs\Wellspring;
@@ -273,7 +266,7 @@ Wellspring::register(function(string $class) {
 }, Priority::Low);
 ```
 
-### 9.2 Mixed SPL and Wellspring usage
+### 9.2 Mixed SPL and Wellspring Usage
 
 ```php
 use DecodeLabs\Wellspring;
@@ -317,7 +310,7 @@ Wellspring::register($loader);
 // Only registered once - subsequent calls are ignored
 ```
 
-### 9.4 Unregistering loaders
+### 9.4 Unregistering Loaders
 
 ```php
 use DecodeLabs\Wellspring;
@@ -336,10 +329,11 @@ spl_autoload_register($loader);
 Wellspring::unregister($loader);
 ```
 
-### 9.5 Debugging the queue
+### 9.5 Debugging the Queue
 
 ```php
 use DecodeLabs\Wellspring;
+use DecodeLabs\Wellspring\Priority;
 use DecodeLabs\Wellspring\QueueHandler;
 
 // Register some loaders
@@ -356,7 +350,7 @@ echo "Checks: " . QueueHandler::$checks . PHP_EOL;
 echo "Remaps: " . QueueHandler::$remaps . PHP_EOL;
 ```
 
-### 9.6 Using Loader instances directly
+### 9.6 Using Loader Instances Directly
 
 ```php
 use DecodeLabs\Wellspring;
@@ -387,15 +381,15 @@ if ($loader->isCallback($someCallback)) {
 At a high level, Wellspring:
 
 - **Wraps callables** in `Loader` instances that track priority and identity.
-- **Registers loaders** via `spl_autoload_register()` with appropriate prepend flags based on priority.
-- **Monitors the queue** via `QueueHandler` which runs first in the autoloader chain.
-- **Identifies callables** using a consistent string format based on callable type.
-- **Remaps the queue** when order violations are detected (High after Medium, Low before Medium, etc.).
+- **Registers loaders** via `spl_autoload_register()` with appropriate prepend flags based on priority (High priority loaders are prepended).
+- **Monitors the queue** via `QueueHandler` which runs first in the autoloader chain (always prepended).
+- **Identifies callables** using a consistent string format based on callable type (objects, strings, arrays, etc.).
+- **Remaps the queue** when order violations are detected (High after Medium, Low before Medium, or QueueHandler not first).
 
 Key implementation details:
 
 - `Loader` wraps callables in `Closure::fromCallable()` to normalize them.
-- `Wellspring::identifyCallback()` generates unique identifiers for different callable types.
+- `Wellspring::identifyCallback()` generates unique identifiers for different callable types using object IDs for instances and case-insensitive strings for class/method names.
 - `QueueHandler` uses static state to track the last known queue state and detect changes.
 - Queue remapping unregisters and re-registers loaders to maintain order within priority groups.
 - The queue handler itself is always prepended to ensure it runs first.
@@ -406,14 +400,16 @@ Key implementation details:
 - Queue checks are **lightweight** (array comparison) and remapping is **rare** (only when order is incorrect).
 - Callable identification uses **efficient string operations** and object IDs (no reflection).
 - Deduplication uses **array key lookup** (O(1)) based on callable identity.
+- Queue remapping leverages PHP's internal array referencing to minimize memory allocations.
 
 ### 10.3 Gotchas & Historical Decisions
 
 - **Closure identity**: Closures are always considered unique, even if they have identical code, because their context (bound variables, scope) is unique.
 - **Object instance identity**: Only the same object instance is deduplicated; different instances of the same class are considered unique.
 - **Static method references**: `['Class', 'method']` and `'Class::method'` are normalized and deduplicated case-insensitively.
-- **Queue handler position**: The queue handler must run first to monitor the queue, so it's always prepended.
+- **Queue handler position**: The queue handler must run first to monitor the queue, so it's always prepended. If it's not first, it remaps itself to the front.
 - **SPL compatibility**: Wellspring works with direct SPL usage by monitoring and remapping the queue, but loaders registered via SPL directly get `Medium` priority.
+- **Priority enum**: PHP 8.4 backed enums automatically provide `from()` and `tryFrom()` methods, which are used to convert string priorities to enum values.
 
 ---
 
@@ -423,16 +419,16 @@ Key implementation details:
 
 Tests should cover:
 
-- Registration with different priorities (High, Medium, Low).
+- Registration with different priorities (High, Medium, Low) and priority string conversion.
 - Deduplication of various callable types (functions, methods, closures, objects).
-- Queue ordering (High before Medium before Low).
-- Mixed SPL and Wellspring registration.
+- Queue ordering (High before Medium before Low) and correct execution order.
+- Mixed SPL and Wellspring registration and compatibility.
 - Unregistration of Wellspring and SPL-registered loaders.
-- Queue remapping when order violations are detected.
-- Queue handler statistics (`$checks`, `$remaps`).
-- `dump()` output format and accuracy.
-- Callable identification for all supported types.
-- Edge cases (empty queue, unregistering non-existent loaders, etc.).
+- Queue remapping when order violations are detected (High after Medium, Low before Medium, QueueHandler not first).
+- Queue handler statistics (`$checks`, `$remaps`) increment correctly.
+- `dump()` output format and accuracy for all callable types and sources.
+- Callable identification for all supported types (objects, strings, arrays, closures).
+- Edge cases (empty queue, unregistering non-existent loaders, invalid priorities, etc.).
 
 ### 11.2 Quality Signals
 
@@ -440,8 +436,8 @@ From the Decode Labs package index (at time of writing):
 
 - **Code:** 5
 - **Readme:** 5
-- **Docs:** 0
-- **Tests:** 0
+- **Docs:** Tracked centrally in Chorus
+- **Tests:** Tracked centrally in Chorus
 
 Wellspring is a **high-quality, dependency-free utility** that should be treated as a stable foundation for autoloader management across the Decode Labs ecosystem.
 
@@ -453,9 +449,10 @@ Non-binding ideas:
 
 - Additional priority levels (e.g., `VeryHigh`, `VeryLow`) for finer-grained control.
 - Priority groups with numeric values for custom ordering.
-- Autoloader performance metrics (e.g., call count, average execution time).
+- Autoloader performance metrics (e.g., call count, average execution time per loader).
 - Integration with Composer autoloader to automatically assign priorities based on package dependencies.
 - Support for conditional autoloaders (e.g., only load in development mode).
+- Priority inheritance when registering `Loader` instances directly.
 
 ---
 
@@ -472,3 +469,7 @@ Non-binding ideas:
 - **Repository:**
   - `https://github.com/decodelabs/wellspring`
 
+---
+
+> This spec is intended to stay in sync with the **actual behaviour** of the package.
+> When you make significant changes to the public surface or semantics, please update this document and, where applicable, add or update ADRs in Chorus.
