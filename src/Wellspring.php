@@ -110,10 +110,8 @@ final class Wellspring
         if (is_array($callback)) {
             if (is_object($callback[0])) {
                 $output = 'ao:' . get_class($callback[0]) . '(' . spl_object_id($callback[0]) . ')';
-            } elseif (is_string($callback[0])) {
-                $output = 'as:' . $callback[0];
             } else {
-                $output = 'ax:' . md5(serialize($callback));
+                $output = 'as:' . $callback[0];
             }
 
             if (is_string($callback[1])) {
