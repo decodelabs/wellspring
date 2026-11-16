@@ -5,10 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Unreleased
+--
+
+---
+
+### [v0.2.1](https://github.com/decodelabs/wellspring/commits/v0.2.1) - 16th November 2026
+
 - Removed an unreachable callback type branch
 - Improved doc comment headers
 - Added AGENTS.md
 - Integrated Chorus dev dependency
+
+[Full list of changes](https://github.com/decodelabs/wellspring/compare/v0.2.0...v0.2.1)
 
 ---
 
@@ -47,4 +55,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### [v0.1.0](https://github.com/decodelabs/wellspring/commits/v0.1.0) - 4th March 2024
 
 - Built initial implementation
-
